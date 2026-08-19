@@ -1,0 +1,8 @@
+#include "forcefield.itp"
+#include "tip4pew.itp"
+
+[ System ]
+TIP4PEW in water
+
+[ molecules ]
+SOL             6000

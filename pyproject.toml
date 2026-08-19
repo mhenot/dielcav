@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dielcav"
+version = "0.1.0"
+description = "Python module for the analysis of molecular dynamics trajectories of polar liquids, with the aim of extracting their static and dynamic dielectric response using the virtual cavity method."
+authors = [{name = "Marceau Henot", email = "marceau.henot@cea.fr"}]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "MDAnalysis",
+    "numba",
+    "numpy",
+]
+
+[project.optional-dependencies]
+docs = [
+    "nbsphinx",
+    "nbsphinx-link",
+    "sphinx",
+    "sphinx-autodoc-typehints",
+]
+examples = [
+    "openmm",
+    "matplotlib",
+]
+
+[tool.setuptools.packages.find]
+include = ["dielcav*"]
