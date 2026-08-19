@@ -25,3 +25,7 @@ make html
 ## Tutorial
 
 See the notebook file examples/example_H2O.ipynb for a tutorial.
+
+## Documentation
+
+[https://mhenot.github.io/dielcav/](https://mhenot.github.io/dielcav/)
