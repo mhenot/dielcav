@@ -2,6 +2,7 @@
 import numpy as np
 from numba import jit
 from multiprocessing import Pool
+from functools import partial
 import os
 
 from .utils import get_pos_dec
@@ -66,6 +67,24 @@ def _update_npz_savefile(path):
         dt = [float(x) for x in header.split(",")[2:-1]]
         np.savez(rf'{path[:-1]}.npz', r, dt, Li0, Ln, LS)
 
+def _process_static_cross_correlations(i0, dips, pos, cell, bins, Ndips, savefolder): 
+    # compute the static cross correlations for a timeframe i0
+    dips_ = dips[i0,:,:]
+    pos_ = pos[i0,:,:]
+    cell_ = cell[i0,:]
+
+    hist_r = np.zeros(len(bins)-1)
+    hist_S = np.zeros(len(bins)-1)
+
+    for j in range(Ndips):
+        pos_dec = get_pos_dec(pos_, cell_, j)
+        r = np.linalg.norm(pos_dec[:j+1,:] - pos_dec[j,:][np.newaxis,:], axis=-1)
+        S = np.sum(dips_[:j+1,:] * dips_[j,:][np.newaxis,:], axis=-1)
+        hist_r_, hist_S_ = _hist_rS_sta(r, S, bins)
+        hist_r+=hist_r_
+        hist_S+=hist_S_
+    np.savetxt(f'{savefolder}{i0}.txt', np.array([bins[1:], np.diff(bins), hist_r, hist_S]).T)
+
 
 def static_cross_correlations(fname, Li0_step, bins, savefolder, N_threads=1, recompute=False):
     """
@@ -118,24 +137,9 @@ def static_cross_correlations(fname, Li0_step, bins, savefolder, N_threads=1, re
             print(Li0_done, ' already done')
             print(Li0, ' todo')
 
-    global process
+    process = partial(_process_static_cross_correlations, 
+        dips=dips, pos=pos, cell=cell, bins=bins, Ndips=Ndips, savefolder=savefolder)
     
-    def process(i0): # compute the static cross correlations for a timeframe i0
-        dips_ = dips[i0,:,:]
-        pos_ = pos[i0,:,:]
-        cell_ = cell[i0,:]
-
-        hist_r = np.zeros(len(bins)-1)
-        hist_S = np.zeros(len(bins)-1)
-
-        for j in range(Ndips):
-            pos_dec = get_pos_dec(pos_, cell_, j)
-            r = np.linalg.norm(pos_dec[:j+1,:] - pos_dec[j,:][np.newaxis,:], axis=-1)
-            S = np.sum(dips_[:j+1,:] * dips_[j,:][np.newaxis,:], axis=-1)
-            hist_r_, hist_S_ = _hist_rS_sta(r, S, bins)
-            hist_r+=hist_r_
-            hist_S+=hist_S_
-        np.savetxt(f'{savefolder}{i0}.txt', np.array([bins[1:], np.diff(bins), hist_r, hist_S]).T)
 
     if N_threads == 1:
         # no paralellization
@@ -187,6 +191,27 @@ def compute_static_gk_r(fname):
 
     return r, np.mean(gk, axis=0), np.std(gk, axis=0), np.mean(Ln, axis=0)/dr/Ln[0,0]/(r-dr/2)**2, np.cumsum(np.mean(Ln, axis=0))/Ln[0,0]
 
+def _process_dynamic_cross_correlations(i0, dit_val, t, dips, pos, cell, bins, Ndips, savefolder):
+        # compute cross correlations starting from a timeframe i0
+        dit = i0 + dit_val
+        t_ = t[dit] - t[i0]
+        dips_ = dips[dit,:,:]
+        pos_ = pos[dit,:,:]
+        cell_ = cell[dit,:]
+
+        hist_d = np.zeros(len(bins)-1)
+        hist_S = np.zeros((len(dit), len(bins)-1))
+
+        for j in range(Ndips):
+            pos_dec = get_pos_dec(pos_, cell_, j)
+            d = np.linalg.norm(pos_dec[0,:j+1,:] - pos_dec[0,j,:][np.newaxis,:], axis=-1) # attention on prend la position à t = 0 (dim = (Nd))
+            S = np.sum(dips_[0,j,:][np.newaxis,np.newaxis,:] * dips_[:,:j+1,:], axis=-1) # (dim = (Nd*Nt))
+            hist_d_, hist_S_ = _hist_rS_dyn(d, S, bins)
+            hist_d+=hist_d_
+            hist_S+=hist_S_
+
+        header = 'r, d, ' + ''.join([f'{_:.2f},' for _ in t_])
+        np.savetxt(f'{savefolder}{i0}.txt', np.vstack((bins[1:], hist_d, hist_S)).T, header=header)
 
 def dynamic_cross_correlations(fname, Li0_step, dit_val, bins, savefolder, N_threads=1, recompute=False):
     """
@@ -242,30 +267,8 @@ def dynamic_cross_correlations(fname, Li0_step, dit_val, bins, savefolder, N_thr
             print(Li0_done, ' already done')
             print(Li0, ' todo')
 
-    global process
-    
-    def process(i0):
-        print(i0)
-        # compute cross correlations starting from a timeframe i0
-        dit = i0 + dit_val
-        t_ = t[dit] - t[i0]
-        dips_ = dips[dit,:,:]
-        pos_ = pos[dit,:,:]
-        cell_ = cell[dit,:]
-
-        hist_d = np.zeros(len(bins)-1)
-        hist_S = np.zeros((len(dit), len(bins)-1))
-
-        for j in range(Ndips):
-            pos_dec = get_pos_dec(pos_, cell_, j)
-            d = np.linalg.norm(pos_dec[0,:j+1,:] - pos_dec[0,j,:][np.newaxis,:], axis=-1) # attention on prend la position à t = 0 (dim = (Nd))
-            S = np.sum(dips_[0,j,:][np.newaxis,np.newaxis,:] * dips_[:,:j+1,:], axis=-1) # (dim = (Nd*Nt))
-            hist_d_, hist_S_ = _hist_rS_dyn(d, S, bins)
-            hist_d+=hist_d_
-            hist_S+=hist_S_
-
-        header = 'r, d, ' + ''.join([f'{_:.2f},' for _ in t_])
-        np.savetxt(f'{savefolder}{i0}.txt', np.vstack((bins[1:], hist_d, hist_S)).T, header=header)
+    process = partial(_process_dynamic_cross_correlations, 
+        dit_val=dit_val, t=t, dips=dips, pos=pos, cell=cell, bins=bins, Ndips=Ndips, savefolder=savefolder)
 
     if N_threads == 1:
         # no paralellization

@@ -4,7 +4,7 @@ from openmm.unit import *
 from sys import stdout
 
 
-def run_water(fname, equilibrationSteps, steps, save_steps, load_checkpoint=None):
+def run_water(fname, equilibrationSteps, steps, save_steps, load_checkpoint=None, platform='CPU'):
 
     temperature = 320*kelvin
     pressure = 1.0*atmospheres
@@ -30,8 +30,14 @@ def run_water(fname, equilibrationSteps, steps, save_steps, load_checkpoint=None
 
     barostatInterval = 25
 
-    platform = Platform.getPlatformByName('CUDA')
-    platformProperties = {'Precision': 'single'}
+    if platform == 'CPU':
+        platform = Platform.getPlatformByName('CPU')
+        platformProperties = {}
+    elif platform == 'CUDA'
+        platform = Platform.getPlatformByName('CUDA')
+        platformProperties = {'Precision': 'single'}
+    else:
+        raise NotImplementedError
 
     # Prepare the Simulation
     print('Building system...')
@@ -77,6 +83,6 @@ def run_water(fname, equilibrationSteps, steps, save_steps, load_checkpoint=None
     simulation.step(steps)
 
 
-run_water('320K_1', equilibrationSteps=5e5, steps=2e6, save_steps=1000)
+run_water('320K_1', equilibrationSteps=5e5, steps=1e6, save_steps=1000)
 # run_water('320K_2', equilibrationSteps=0, steps=2e5, save_steps=100, load_checkpoint='320K_1')
 # run_water('320K_3', equilibrationSteps=0, steps=2e4, save_steps=10, load_checkpoint='320K_1')
